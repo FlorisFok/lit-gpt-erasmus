@@ -21,37 +21,23 @@ from lit_gpt.model import GPT, Block
 from lit_gpt.speed_monitor import SpeedMonitorCallback, estimate_flops, measure_flops
 from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision, step_csv_logger
 
-model_name = "pythia-70m"
-name = "openwebtext"
-out_dir = Path("out") / name
-data_dir = Path("data") / name
-save_interval = 1000
-eval_interval = 1000
-eval_iters = 100
-log_interval = 1
-
-# Hyperparameters
-learning_rate = 6e-4
-batch_size = 125
-micro_batch_size = 5
-gradient_accumulation_steps = batch_size // micro_batch_size
-assert gradient_accumulation_steps > 0
-max_iters = 600000  # num_epochs * (epoch_size // micro_batch_size) // devices
-weight_decay = 1e-1
-beta1 = 0.9
-beta2 = 0.95
-decay_lr = True
-warmup_iters = 2000
-lr_decay_iters = max_iters
-min_lr = 6e-5
-
-hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
 
 
 class LightningGPTModule(L.LightningModule):
-    def __init__(self, config: Config) -> None:
+    def __init__(self, config: Config, learning_rate, weight_decay, beta1, beta2, micro_batch_size, decay_lr, warmup_iters, lr_decay_iters, min_lr) -> None:
         super().__init__()
         self.config = config
+
+        self.micro_batch_size = micro_batch_size
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.beta1 = beta1
+        self.beta2 = beta2
+        self.decay_lr = decay_lr
+        self.warmup_iters = warmup_iters
+        self.lr_decay_iters = lr_decay_iters
+        self.min_lr = min_lr
+
         self.module: Optional[torch.nn.Module] = None
         self.measured_flops: Optional[int] = None
 
@@ -61,7 +47,7 @@ class LightningGPTModule(L.LightningModule):
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
         return torch.optim.AdamW(
-            self.module.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2), foreach=False
+            self.module.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay, betas=(self.beta1, self.beta2), foreach=False
         )
 
     def on_fit_start(self) -> None:
@@ -71,17 +57,17 @@ class LightningGPTModule(L.LightningModule):
             # "estimated" is not as precise as "measured". Estimated is optimistic but widely used in the wild.
             # When comparing MFU or FLOP numbers with other projects that use estimated FLOPs,
             # consider setting `self.measured_flops = estimated_flops` instead
-            estimated_flops = estimate_flops(meta_model) * micro_batch_size
+            estimated_flops = estimate_flops(meta_model) * self.micro_batch_size
             self.print(f"Estimated TFLOPs: {estimated_flops * trainer.world_size / 1e12:.2f}")
-            x = torch.randint(0, 1, (micro_batch_size, meta_model.config.block_size))
+            x = torch.randint(0, 1, (self.micro_batch_size, meta_model.config.block_size))
             self.measured_flops = measure_flops(meta_model, x)
             self.print(f"Measured TFLOPs: {self.measured_flops * trainer.world_size / 1e12:.2f}")
 
     def on_train_batch_start(self, batch: Any, batch_idx: int) -> None:
-        if not decay_lr:
+        if not self.decay_lr:
             return
         # determine and set the learning rate for this iteration
-        lr = get_lr(self.trainer.fit_loop.total_batch_idx)
+        lr = get_lr(self.trainer.fit_loop.total_batch_idx, self.warmup_iters, self.learning_rate, self.lr_decay_iters, self.min_lr)
         for optimizer in self.trainer.strategy.optimizers:
             for param_group in optimizer.param_groups:
                 param_group["lr"] = lr
@@ -100,8 +86,32 @@ class LightningGPTModule(L.LightningModule):
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
 
 
-def main(devices: int = 1, precision: Optional[str] = None) -> None:
+def main(devices: int = 1, precision: Optional[str] = None, model_name: str = "pythia-70m",
+        out_dir: Path = Path("out/None"),
+        data_dir: Path = Path("data/None"),
+        save_interval: int = 1000,
+        eval_interval: int = 1000,
+        eval_iters: int = 100,
+        log_interval: int = 1,
+        learning_rate: float = 6e-4,
+        batch_size : int= 125,
+        micro_batch_size: int = 5,
+        max_iters: int = 600000,
+        weight_decay: float = 1e-1,
+        beta1: float = 0.9,
+        beta2: float = 0.95,
+        warmup_iters: float = 2000,
+        min_lr: float = 6e-5) -> None:
+
     precision = precision or get_default_supported_precision(training=True)
+    gradient_accumulation_steps = batch_size // micro_batch_size
+    assert gradient_accumulation_steps > 0
+    # num_epochs * (epoch_size // micro_batch_size) // devices
+
+    decay_lr = True
+    lr_decay_iters = max_iters
+
+    hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
 
     if devices > 1:
         strategy = FSDPStrategy(
@@ -115,7 +125,7 @@ def main(devices: int = 1, precision: Optional[str] = None) -> None:
     else:
         strategy = "auto"
 
-    logger = step_csv_logger("out", name, cls=CSVLogger, flush_logs_every_n_steps=log_interval)
+    logger = step_csv_logger("out", model, cls=CSVLogger, flush_logs_every_n_steps=log_interval)
     speed_monitor = SpeedMonitorCallback(
         length_fn=lambda batch: batch[0].size(1), batch_size=micro_batch_size, window_size=50, time_unit="seconds"
     )
@@ -144,7 +154,7 @@ def main(devices: int = 1, precision: Optional[str] = None) -> None:
     config = Config.from_name(model_name)
     trainer.print(f"Loading model with {config.__dict__}")
     t0 = time.perf_counter()
-    model = LightningGPTModule(config)
+    model = LightningGPTModule(config, learning_rate, weight_decay, beta1, beta2, micro_batch_size, decay_lr, warmup_iters, lr_decay_iters, min_lr)
     trainer.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
 
     train_data = Dataset(str(data_dir / "train.bin"), config.block_size)
@@ -175,7 +185,7 @@ class Dataset(IterableDataset):
 
 
 # learning rate decay scheduler (cosine with warmup)
-def get_lr(it):
+def get_lr(it, warmup_iters, learning_rate, lr_decay_iters, min_lr):
     # 1) linear warmup for warmup_iters steps
     if it < warmup_iters:
         return learning_rate * it / warmup_iters
