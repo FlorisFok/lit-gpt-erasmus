@@ -171,8 +171,8 @@ def main(devices: int = 1, precision: Optional[str] = None, model_name: str = "p
 
     train_data = Dataset(str(data_dir / "train.bin"), config.block_size)
     val_data = Dataset(str(data_dir / "val.bin"), config.block_size)
-    train_dataloader = DataLoader(train_data, batch_size=micro_batch_size, num_workers=2)
-    val_dataloader = DataLoader(val_data, batch_size=micro_batch_size, num_workers=2)
+    train_dataloader = DataLoader(train_data, batch_size=micro_batch_size, num_workers=20)
+    val_dataloader = DataLoader(val_data, batch_size=micro_batch_size, num_workers=20)
 
     t0 = time.perf_counter()
     trainer.fit(model, train_dataloader, val_dataloader, ckpt_path="last")
