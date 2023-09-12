@@ -125,7 +125,7 @@ def main(devices: int = 1, precision: Optional[str] = None, model_name: str = "p
     else:
         strategy = "auto"
 
-    logger = step_csv_logger("out", model, cls=CSVLogger, flush_logs_every_n_steps=log_interval)
+    logger = step_csv_logger("out", model_name, cls=CSVLogger, flush_logs_every_n_steps=log_interval)
     speed_monitor = SpeedMonitorCallback(
         length_fn=lambda batch: batch[0].size(1), batch_size=micro_batch_size, window_size=50, time_unit="seconds"
     )
