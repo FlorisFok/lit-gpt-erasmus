@@ -19,7 +19,7 @@ sys.path.append(str(wd))
 from lit_gpt import Config
 from lit_gpt.model import GPT, Block
 from lit_gpt.speed_monitor import SpeedMonitorCallback, estimate_flops, measure_flops
-from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision, step_csv_logger
+from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision, step_csv_logger, lazy_load
 
 
 
@@ -89,6 +89,7 @@ class LightningGPTModule(L.LightningModule):
 def main(devices: int = 1, precision: Optional[str] = None, model_name: str = "pythia-70m",
         out_dir: Path = Path("out/None"),
         data_dir: Path = Path("data/None"),
+        check_point: str = '',
         save_interval: int = 1000,
         eval_interval: int = 1000,
         eval_iters: int = 100,
@@ -154,8 +155,19 @@ def main(devices: int = 1, precision: Optional[str] = None, model_name: str = "p
     config = Config.from_name(model_name)
     trainer.print(f"Loading model with {config.__dict__}")
     t0 = time.perf_counter()
-    model = LightningGPTModule(config, learning_rate, weight_decay, beta1, beta2, micro_batch_size, decay_lr, warmup_iters, lr_decay_iters, min_lr)
-    trainer.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
+
+    if check_point:
+        checkpoint_dir  = Path(check_point)
+        config = Config.from_name(name=checkpoint_dir.name)
+        checkpoint_path = checkpoint_dir / "lit_model.pth"
+        trainer.print(f"Loading model {str(checkpoint_path)!r} with {config.__dict__}")
+        with trainer.init_module(empty_init=False):
+            model = GPT(config)
+        with lazy_load(checkpoint_path) as checkpoint:
+            model.load_state_dict(checkpoint)
+    else:
+        model = LightningGPTModule(config, learning_rate, weight_decay, beta1, beta2, micro_batch_size, decay_lr, warmup_iters, lr_decay_iters, min_lr)
+        trainer.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
 
     train_data = Dataset(str(data_dir / "train.bin"), config.block_size)
     val_data = Dataset(str(data_dir / "val.bin"), config.block_size)
