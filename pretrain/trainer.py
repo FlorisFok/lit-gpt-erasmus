@@ -125,14 +125,15 @@ def main(devices: int = 4, precision: Optional[str] = None, model_name: str = "p
 
     hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
 
+    trainer.print('fsdp in use')
     if devices > 1:
         strategy = FSDPStrategy(
             # auto_wrap_policy={Block},
             # activation_checkpointing_policy={Block},
             # the argument is not available in the Trainer strategy, but it's the default anyways
             # state_dict_type="full",
-            limit_all_gathers=True,
-            cpu_offload=False,
+            # limit_all_gathers=True,
+            # cpu_offload=False,
         )
     if not strategy:
         strategy = "auto"
@@ -144,7 +145,7 @@ def main(devices: int = 4, precision: Optional[str] = None, model_name: str = "p
     model_checkpoint = ModelCheckpoint(dirpath=out_dir, every_n_train_steps=save_interval, save_last=True, verbose=True)
     trainer = L.Trainer(
         devices=devices,
-        strategy=strategy,
+        strategy='fsdp',
         precision=precision,
         logger=logger,
         callbacks=[speed_monitor, model_checkpoint],
