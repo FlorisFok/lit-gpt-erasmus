@@ -16,6 +16,7 @@ from torch.utils.data import DataLoader, IterableDataset
 wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
+
 from lit_gpt import Config
 from lit_gpt.model import GPT, Block
 from lit_gpt.speed_monitor import SpeedMonitorCallback, estimate_flops, measure_flops
@@ -146,26 +147,28 @@ def main(devices: int = 1, precision: Optional[str] = None, model_name: str = "p
     )
 
     L.seed_everything(1337, workers=True)  # same seed for every process to init model (FSDP)
-
     trainer.print(hparams)
 
     if trainer.global_rank == 0:
         out_dir.mkdir(parents=True, exist_ok=True)
 
-    config = Config.from_name(model_name)
-    trainer.print(f"Loading model with {config.__dict__}")
-    t0 = time.perf_counter()
-
     if check_point:
         checkpoint_dir  = Path(check_point)
         config = Config.from_name(name=checkpoint_dir.name)
+        trainer.print(f"Loading model with {config.__dict__}")
+        t0 = time.perf_counter()
         checkpoint_path = checkpoint_dir / "lit_model.pth"
         trainer.print(f"Loading model {str(checkpoint_path)!r} with {config.__dict__}")
         with trainer.init_module(empty_init=False):
-            model = GPT(config)
+            model = LightningGPTModule(config, learning_rate, weight_decay, beta1, beta2, micro_batch_size, decay_lr, warmup_iters, lr_decay_iters, min_lr)
         with lazy_load(checkpoint_path) as checkpoint:
-            model.load_state_dict(checkpoint)
+            model.module.load_state_dict(checkpoint)
+
+        trainer.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
     else:
+        config = Config.from_name(model_name)
+        trainer.print(f"Loading model with {config.__dict__}")
+        t0 = time.perf_counter()
         model = LightningGPTModule(config, learning_rate, weight_decay, beta1, beta2, micro_batch_size, decay_lr, warmup_iters, lr_decay_iters, min_lr)
         trainer.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
 
