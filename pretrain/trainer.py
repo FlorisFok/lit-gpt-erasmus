@@ -96,7 +96,7 @@ class LightningGPTModule(L.LightningModule):
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
 
 
-def main(devices: int = 1, precision: Optional[str] = None, model_name: str = "pythia-70m",
+def main(devices: int = 4, precision: Optional[str] = None, model_name: str = "pythia-70m",
         out_dir: Path = Path("out/None"),
         data_dir: Path = Path("data/None"),
         check_point: str = '',
@@ -113,7 +113,7 @@ def main(devices: int = 1, precision: Optional[str] = None, model_name: str = "p
         beta2: float = 0.95,
         warmup_iters: float = 2000,
         min_lr: float = 6e-5,
-        strategy: str = '') -> None:
+        strategy: str = 'fsdp') -> None:
 
     precision = precision or get_default_supported_precision(training=True)
     gradient_accumulation_steps = batch_size // micro_batch_size
@@ -149,7 +149,7 @@ def main(devices: int = 1, precision: Optional[str] = None, model_name: str = "p
         logger=logger,
         callbacks=[speed_monitor, model_checkpoint],
         max_steps=max_iters,
-        max_epochs=1,
+        # max_epochs=1,
         limit_val_batches=eval_iters,
         accumulate_grad_batches=gradient_accumulation_steps,
         log_every_n_steps=log_interval,
