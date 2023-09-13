@@ -125,7 +125,7 @@ def main(devices: int = 4, precision: Optional[str] = None, model_name: str = "p
 
     hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
 
-    if devices > 1 and not strategy:
+    if devices > 1:
         strategy = FSDPStrategy(
             auto_wrap_policy={Block},
             activation_checkpointing_policy={Block},
