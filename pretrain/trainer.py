@@ -169,9 +169,9 @@ def main(devices: int = 1, precision: Optional[str] = None, model_name: str = "p
         checkpoint_path = checkpoint_dir / "lit_model.pth"
         trainer.print(f"Loading model {str(checkpoint_path)!r} with {config.__dict__}")
         with trainer.init_module(empty_init=False):
-            model = LightningGPTModule(config, learning_rate, weight_decay, beta1, beta2, micro_batch_size, decay_lr, warmup_iters, lr_decay_iters, min_lr, checkpoint)
+            model = LightningGPTModule(config, learning_rate, weight_decay, beta1, beta2, micro_batch_size, decay_lr, warmup_iters, lr_decay_iters, min_lr, check_point)
         trainer.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
-        
+
     else:
         config = Config.from_name(model_name)
         trainer.print(f"Loading model with {config.__dict__}")
