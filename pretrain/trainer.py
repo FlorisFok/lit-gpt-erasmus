@@ -25,7 +25,7 @@ from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision
 
 
 class LightningGPTModule(L.LightningModule):
-    def __init__(self, config: Config, learning_rate, weight_decay, beta1, beta2, micro_batch_size, decay_lr, warmup_iters, lr_decay_iters, min_lr) -> None:
+    def __init__(self, config: Config, learning_rate, weight_decay, beta1, beta2, micro_batch_size, decay_lr, warmup_iters, lr_decay_iters, min_lr, check_point='') -> None:
         super().__init__()
         self.config = config
 
@@ -38,13 +38,22 @@ class LightningGPTModule(L.LightningModule):
         self.warmup_iters = warmup_iters
         self.lr_decay_iters = lr_decay_iters
         self.min_lr = min_lr
+        self.check_point = check_point
 
         self.module: Optional[torch.nn.Module] = None
         self.measured_flops: Optional[int] = None
 
     def configure_model(self) -> None:
         self.module = GPT(self.config)
-        self.module.apply(self.module._init_weights)
+
+        if not self.check_point:
+            self.module.apply(self.module._init_weights)
+
+        else:
+            checkpoint_dir  = Path(self.check_point)
+            checkpoint_path = checkpoint_dir / "lit_model.pth"
+            with lazy_load(checkpoint_path) as checkpoint:
+                self.module.load_state_dict(checkpoint)
 
     def configure_optimizers(self) -> torch.optim.Optimizer:
         return torch.optim.AdamW(
@@ -160,12 +169,9 @@ def main(devices: int = 1, precision: Optional[str] = None, model_name: str = "p
         checkpoint_path = checkpoint_dir / "lit_model.pth"
         trainer.print(f"Loading model {str(checkpoint_path)!r} with {config.__dict__}")
         with trainer.init_module(empty_init=False):
-            model = LightningGPTModule(config, learning_rate, weight_decay, beta1, beta2, micro_batch_size, decay_lr, warmup_iters, lr_decay_iters, min_lr)
-            model.configure_model()
-        with lazy_load(checkpoint_path) as checkpoint:
-            model.module.load_state_dict(checkpoint)
-
+            model = LightningGPTModule(config, learning_rate, weight_decay, beta1, beta2, micro_batch_size, decay_lr, warmup_iters, lr_decay_iters, min_lr, checkpoint)
         trainer.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
+        
     else:
         config = Config.from_name(model_name)
         trainer.print(f"Loading model with {config.__dict__}")
