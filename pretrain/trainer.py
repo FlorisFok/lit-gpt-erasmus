@@ -112,7 +112,8 @@ def main(devices: int = 1, precision: Optional[str] = None, model_name: str = "p
         beta1: float = 0.9,
         beta2: float = 0.95,
         warmup_iters: float = 2000,
-        min_lr: float = 6e-5) -> None:
+        min_lr: float = 6e-5,
+        strategy: str = '') -> None:
 
     precision = precision or get_default_supported_precision(training=True)
     gradient_accumulation_steps = batch_size // micro_batch_size
@@ -124,7 +125,7 @@ def main(devices: int = 1, precision: Optional[str] = None, model_name: str = "p
 
     hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
 
-    if devices > 1:
+    if devices > 1 and not strategy:
         strategy = FSDPStrategy(
             auto_wrap_policy={Block},
             activation_checkpointing_policy={Block},
@@ -133,7 +134,7 @@ def main(devices: int = 1, precision: Optional[str] = None, model_name: str = "p
             limit_all_gathers=True,
             cpu_offload=False,
         )
-    else:
+    if not strategy:
         strategy = "auto"
 
     logger = step_csv_logger("out", model_name, cls=CSVLogger, flush_logs_every_n_steps=log_interval)
