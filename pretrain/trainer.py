@@ -127,8 +127,8 @@ def main(devices: int = 4, precision: Optional[str] = None, model_name: str = "p
 
     if devices > 1:
         strategy = FSDPStrategy(
-            auto_wrap_policy={Block},
-            activation_checkpointing_policy={Block},
+            # auto_wrap_policy={Block},
+            # activation_checkpointing_policy={Block},
             # the argument is not available in the Trainer strategy, but it's the default anyways
             # state_dict_type="full",
             limit_all_gathers=True,
