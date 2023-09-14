@@ -228,8 +228,8 @@ def train(fabric, state, train_dataloader, val_dataloader, speed_monitor):
 def validate(fabric: L.Fabric, model: torch.nn.Module, val_dataloader: DataLoader) -> torch.Tensor:
     fabric.print("Validating ...")
     model.eval()
-    fabric.print(f"We now have config: {model.config}")
-    fabric.print(f"We now have config: {model.config.block_size=}")
+    # fabric.print(f"We now have config: {model.config}")
+    # fabric.print(f"We now have config: {model.config.block_size=}")
 
     losses = torch.zeros(eval_iters, device=fabric.device)
     for k, val_data in enumerate(val_dataloader):

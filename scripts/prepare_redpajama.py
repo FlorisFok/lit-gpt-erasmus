@@ -47,8 +47,9 @@ def prepare_sample(
 
     tokenizer = Tokenizer(checkpoint_dir)
 
-    for name in filenames_sample:
-        if match and match not in name:
+    for name in os.listdir(str(source_path)):
+        if (match and match not in name) or '.json' not in name:
+            print('SKIP:', name)
             continue
 
         filepath = source_path / name
