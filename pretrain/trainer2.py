@@ -97,23 +97,23 @@ def main(fabric, train_data_dir, val_data_dir, resume):
 
     config = Config.from_name(model_name)
 
-    # train_dataloader, val_dataloader = create_dataloaders(
-    #     batch_size=micro_batch_size,
-    #     block_size=config.block_size,
-    #     fabric=fabric,
-    #     train_data_dir=train_data_dir,
-    #     val_data_dir=val_data_dir,
-    #     seed=(1337 + fabric.global_rank),
-    # )
-    # if val_dataloader is None:
-    #     train_dataloader = fabric.setup_dataloaders(train_dataloader)
-    # else:
-    #     train_dataloader, val_dataloader = fabric.setup_dataloaders(train_dataloader, val_dataloader)
+    train_dataloader, val_dataloader = create_dataloaders(
+        batch_size=micro_batch_size,
+        block_size=config.block_size,
+        fabric=fabric,
+        train_data_dir=train_data_dir,
+        val_data_dir=val_data_dir,
+        seed=(1337 + fabric.global_rank),
+    )
+    if val_dataloader is None:
+        train_dataloader = fabric.setup_dataloaders(train_dataloader)
+    else:
+        train_dataloader, val_dataloader = fabric.setup_dataloaders(train_dataloader, val_dataloader)
 
-    train_data = Dataset(str(train_data_dir / "train.bin"), config.block_size)
-    val_data = Dataset(str(train_data_dir / "val.bin"), config.block_size)
-    train_dataloader = DataLoader(train_data, batch_size=micro_batch_size, num_workers=20)
-    val_dataloader = DataLoader(val_data, batch_size=micro_batch_size, num_workers=20)
+    # train_data = Dataset(str(train_data_dir / "train.bin"), config.block_size)
+    # val_data = Dataset(str(train_data_dir / "val.bin"), config.block_size)
+    # train_dataloader = DataLoader(train_data, batch_size=micro_batch_size, num_workers=20)
+    # val_dataloader = DataLoader(val_data, batch_size=micro_batch_size, num_workers=20)
 
     fabric.seed_everything(1337)  # same seed for every process to init model (FSDP)
 
