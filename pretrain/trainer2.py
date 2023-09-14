@@ -247,9 +247,33 @@ def create_dataloader(
     batch_size: int, block_size: int, data_dir: Path, fabric, shuffle: bool = True, seed: int = 12345
 ) -> DataLoader:
     datasets = []
-    for prefix, _ in data_config:
-        filenames = glob.glob(str(data_dir / f"{prefix}*"))
-        dataset = PackedDataset(
+    # for prefix, _ in data_config:
+    #     filenames = glob.glob(str(data_dir / f"{prefix}*"))
+    #     dataset = PackedDataset(
+    #         filenames,
+    #         n_chunks=4,
+    #         block_size=block_size,
+    #         shuffle=shuffle,
+    #         seed=seed,
+    #         num_processes=fabric.world_size,
+    #         process_rank=fabric.global_rank,
+    #     )
+    #     datasets.append(dataset)
+
+    # if not datasets:
+    #     raise RuntimeError(
+    #         f"No data found at {data_dir}. Make sure you ran prepare_redpajama.py to create the dataset."
+    #     )
+
+    # weights = [weight for _, weight in data_config]
+    # sum_weights = sum(weights)
+    # weights = [el / sum_weights for el in weights]
+
+    # combined_dataset = CombinedDataset(datasets=datasets, seed=seed, weights=weights)
+    # return DataLoader(combined_dataset, batch_size=batch_size, shuffle=False, pin_memory=True)
+
+    filenames = glob.glob(str(data_dir))
+    dataset = PackedDataset(
             filenames,
             n_chunks=4,
             block_size=block_size,
@@ -257,21 +281,9 @@ def create_dataloader(
             seed=seed,
             num_processes=fabric.world_size,
             process_rank=fabric.global_rank,
-        )
-        datasets.append(dataset)
+    )
 
-    if not datasets:
-        raise RuntimeError(
-            f"No data found at {data_dir}. Make sure you ran prepare_redpajama.py to create the dataset."
-        )
-
-    weights = [weight for _, weight in data_config]
-    sum_weights = sum(weights)
-    weights = [el / sum_weights for el in weights]
-
-    combined_dataset = CombinedDataset(datasets=datasets, seed=seed, weights=weights)
-
-    return DataLoader(combined_dataset, batch_size=batch_size, shuffle=False, pin_memory=True)
+    return DataLoader(dataset, batch_size=batch_size, shuffle=False, pin_memory=True)
 
 
 class Dataset(IterableDataset):
