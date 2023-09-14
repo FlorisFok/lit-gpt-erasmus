@@ -271,8 +271,11 @@ def create_dataloader(
 
     # combined_dataset = CombinedDataset(datasets=datasets, seed=seed, weights=weights)
     # return DataLoader(combined_dataset, batch_size=batch_size, shuffle=False, pin_memory=True)
+    
+    import os
+    filenames = [data_dir / i for i in os.listdir(str(data_dir))]
+    fabric.print(f"{filenames=}")
 
-    filenames = glob.glob(str(data_dir))
     dataset = PackedDataset(
             filenames,
             n_chunks=4,
