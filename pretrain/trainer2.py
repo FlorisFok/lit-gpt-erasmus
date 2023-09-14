@@ -26,18 +26,18 @@ from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision
 model_name = "pythia-6.9b"
 name = "pythia-6.9b"
 out_dir = Path("out") / name
-save_interval = 500
+save_interval = 3
 eval_interval = 500
 eval_iters = 100
-log_interval = 1
+log_interval = 5
 
 # Hyperparameters
 learning_rate = 6e-4
-batch_size = 125
+batch_size = 25
 micro_batch_size = 1
 gradient_accumulation_steps = batch_size // micro_batch_size
 assert gradient_accumulation_steps > 0
-max_iters = 600000  # num_epochs * (epoch_size // micro_batch_size) // devices
+max_iters = 101  # num_epochs * (epoch_size // micro_batch_size) // devices  60000
 weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.95
