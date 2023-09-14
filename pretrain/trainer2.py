@@ -26,15 +26,15 @@ from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision
 model_name = "pythia-6.9b"
 name = "pythia-6.9b"
 out_dir = Path("out") / name
-save_interval = 1000
-eval_interval = 1000
+save_interval = 500
+eval_interval = 500
 eval_iters = 100
 log_interval = 1
 
 # Hyperparameters
 learning_rate = 6e-4
 batch_size = 125
-micro_batch_size = 2
+micro_batch_size = 5
 gradient_accumulation_steps = batch_size // micro_batch_size
 assert gradient_accumulation_steps > 0
 max_iters = 600000  # num_epochs * (epoch_size // micro_batch_size) // devices
@@ -237,8 +237,12 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_dataloader: DataLoade
         targets = val_data[:, 1 : model.config.block_size + 1].contiguous()
         logits = model(input_ids)
         losses[k] = chunked_cross_entropy(logits, targets, chunk_size=0)
-    out = losses.mean()
 
+        if (k + 1) >= eval_iters:
+            break
+
+    out = losses.mean()
+    fabric.print(f"Validating Done")
     model.train()
     return out
 
