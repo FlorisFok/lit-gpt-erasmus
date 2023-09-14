@@ -143,14 +143,12 @@ def main(fabric, train_data_dir, val_data_dir, resume, pretrain):
     elif pretrain:
         checkpoint_dir  = Path(pretrain)
         checkpoint_path = checkpoint_dir / "lit_model.pth"
-
         resume = out_dir / 'start.pth'
 
         fabric.print(f"Loading weights from {pretrain}")
-        with lazy_load(checkpoint_path) as full_state:
-            fabric.print(f"{checkpoint_path=} has: {list(full_state.keys())[:10]}")
-            state.update({'model': full_state})
-            torch.save(full_state, resume)
+        full_state = torch.load(checkpoint_path)
+        state.update({'model': dict(full_state)})
+        torch.save(full_state, resume)
 
     if resume:
         fabric.print(f"Resuming training from {resume}")
