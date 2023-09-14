@@ -98,7 +98,11 @@ def main(fabric, train_data_dir, val_data_dir, resume, pretrain, quantize=None):
     if fabric.global_rank == 0:
         out_dir.mkdir(parents=True, exist_ok=True)
 
-    config = Config.from_name(model_name)
+    if pretrain:
+        pretrained_dir  = Path(pretrain)
+        config = Config.from_json(pretrained_dir / "lit_config.json")
+    else:
+        config = Config.from_name(model_name)
 
     train_dataloader, val_dataloader = create_dataloaders(
         batch_size=micro_batch_size,
@@ -124,7 +128,9 @@ def main(fabric, train_data_dir, val_data_dir, resume, pretrain, quantize=None):
     t0 = time.perf_counter()
     with fabric.init_module(empty_init=True):
         model = GPT(config)
-        model.apply(partial(model._init_weights ,n_layer=config.n_layer))
+
+        if not pretrain:
+            model.apply(partial(model._init_weights ,n_layer=config.n_layer))
 
     if pretrain:
         pretrained_dir  = Path(pretrain)
