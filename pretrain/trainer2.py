@@ -148,8 +148,8 @@ def main(fabric, train_data_dir, val_data_dir, resume, pretrain):
 
         fabric.print(f"Loading weights from {pretrain}")
         with lazy_load(checkpoint_path) as full_state:
-            fabric.print(f"{checkpoint_path=} has: {full_state.keys()=}")
-            state.update({'model': full_state['model']})
+            fabric.print(f"{checkpoint_path=} has: {list(full_state.keys())[:10]}")
+            state.update({'model': full_state})
             torch.save(full_state, resume)
 
     if resume:
