@@ -285,8 +285,8 @@ class Dataset(IterableDataset):
         while True:
             i = torch.randint(len(data) - self.block_size, (1,)).item()
             x = torch.from_numpy((data[i : i + self.block_size]).astype(np.int64))
-            y = torch.from_numpy((data[i + 1 : i + 1 + self.block_size]).astype(np.int64))
-            yield x, y
+            # y = torch.from_numpy((data[i + 1 : i + 1 + self.block_size]).astype(np.int64))
+            yield x #, y
 
 
 def create_dataloaders(
