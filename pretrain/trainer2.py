@@ -15,7 +15,7 @@ sys.path.append(str(wd))
 
 from lit_gpt.model import GPT, Block, Config
 from lit_gpt.packed_dataset import CombinedDataset, PackedDataset
-from lightning.fabric.strategies.Strategy import FSDPStrategy
+from lightning.fabric.strategies import FSDPStrategy
 from torch.utils.data import DataLoader, IterableDataset
 import numpy as np
 from lit_gpt.speed_monitor import SpeedMonitorFabric as SpeedMonitor
