@@ -5,6 +5,7 @@ https://github.com/EleutherAI/gpt-neox/tree/main/megatron/model.
 """
 import math
 from typing import Any, Optional, Tuple
+import lightning as L
 
 import torch
 import torch.nn as nn
@@ -16,7 +17,8 @@ from lit_gpt.config import Config
 FlashAttention2Available = bool(RequirementCache("flash-attn>=2.0.0.post1"))
 
 
-class GPT(nn.Module):
+# class GPT(nn.Module):
+class GPT(L.LightningModule):
     def __init__(self, config: Config) -> None:
         super().__init__()
         assert config.padded_vocab_size is not None
@@ -74,7 +76,7 @@ class GPT(nn.Module):
         if input_pos is not None:  # use the kv cache
             cos = self.cos.index_select(0, input_pos)
             sin = self.sin.index_select(0, input_pos)
-            
+
             if self.mask_cache is None:
                 raise TypeError("You need to call `gpt.set_kv_cache()`")
             mask = self.mask_cache.index_select(2, input_pos)
