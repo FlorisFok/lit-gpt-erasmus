@@ -126,6 +126,14 @@ def main(fabric, train_data_dir, val_data_dir, resume, pretrain, quantize=None):
         model = GPT(config)
         model.apply(partial(model._init_weights ,n_layer=config.n_layer))
 
+    if pretrain:
+        pretrained_dir  = Path(pretrain)
+        pretrained_path = pretrained_dir / "lit_model.pth"
+
+        fabric.print(f"Loading weights from {pretrain}")
+        with lazy_load(pretrained_path) as checkpoint:
+            model.load_state_dict(checkpoint.get("model", checkpoint), strict=quantize is None)
+
     fabric.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
     fabric.print(f"Total parameters {num_parameters(model):,}")
 
@@ -139,15 +147,6 @@ def main(fabric, train_data_dir, val_data_dir, resume, pretrain, quantize=None):
 
     if resume is True:
         resume = sorted(out_dir.glob("*.pth"))[-1]
-
-    elif pretrain:
-        pretrained_dir  = Path(pretrain)
-        pretrained_path = pretrained_dir / "lit_model.pth"
-        # resume = out_dir / 'start.pth'
-
-        fabric.print(f"Loading weights from {pretrain}")
-        with lazy_load(pretrained_path) as checkpoint:
-            model.load_state_dict(checkpoint.get("model", checkpoint), strict=quantize is None)
 
     if resume:
         fabric.print(f"Resuming training from {resume}")
