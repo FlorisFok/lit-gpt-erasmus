@@ -153,7 +153,7 @@ def train(fabric, state, train_dataloader, val_dataloader, speed_monitor):
     model = state["model"]
     optimizer = state["optimizer"]
 
-    if len(val_dataloader) == 0:
+    if val_dataloader is not None and len(val_dataloader) == 0:
         val_dataloader = None
         fabric.print(f"VAL TO NONE")
 
