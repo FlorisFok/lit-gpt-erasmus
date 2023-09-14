@@ -99,7 +99,6 @@ def main(
     t = time.perf_counter() - t0
 
     output = tokenizer.decode(y)
-    output = output.split("### Response:")[1].strip()
     fabric.print(output)
 
     tokens_generated = y.size(0) - prompt_length
