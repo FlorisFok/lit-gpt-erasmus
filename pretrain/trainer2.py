@@ -92,7 +92,7 @@ def setup(
     main(fabric, train_data_dir, val_data_dir, resume, pretrain)
 
 
-def main(fabric, train_data_dir, val_data_dir, resume, pretrain):
+def main(fabric, train_data_dir, val_data_dir, resume, pretrain, quantize=None):
     speed_monitor = SpeedMonitor(fabric, window_size=50, time_unit="seconds")
 
     if fabric.global_rank == 0:
@@ -141,14 +141,13 @@ def main(fabric, train_data_dir, val_data_dir, resume, pretrain):
         resume = sorted(out_dir.glob("*.pth"))[-1]
 
     elif pretrain:
-        checkpoint_dir  = Path(pretrain)
-        checkpoint_path = checkpoint_dir / "lit_model.pth"
-        resume = out_dir / 'start.pth'
+        pretrained_dir  = Path(pretrain)
+        pretrained_path = pretrained_dir / "lit_model.pth"
+        # resume = out_dir / 'start.pth'
 
         fabric.print(f"Loading weights from {pretrain}")
-        full_state = torch.load(checkpoint_path)
-        state.update({'model': dict(full_state)})
-        torch.save(full_state, resume)
+        with lazy_load(pretrained_path) as checkpoint:
+            model.load_state_dict(checkpoint.get("model", checkpoint), strict=quantize is None)
 
     if resume:
         fabric.print(f"Resuming training from {resume}")
