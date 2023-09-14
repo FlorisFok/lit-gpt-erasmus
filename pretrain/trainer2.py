@@ -70,6 +70,7 @@ def setup(
     precision: Optional[str] = None,
     resume: Union[bool, Path] = False,
 ) -> None:
+
     precision = precision or get_default_supported_precision(training=True)
 
     if devices > 1:
@@ -84,6 +85,7 @@ def setup(
         strategy = "auto"
 
     fabric = L.Fabric(devices=devices, strategy=strategy, precision=precision, loggers=logger)
+    fabric.print(f"{devices=}, {train_data_dir=}, {val_data_dir=}, {precision=}, {resume=}")
     fabric.print(hparams)
     # fabric.launch(main, train_data_dir, val_data_dir, resume)
     main(fabric, train_data_dir, val_data_dir, resume)
@@ -150,6 +152,10 @@ def main(fabric, train_data_dir, val_data_dir, resume):
 def train(fabric, state, train_dataloader, val_dataloader, speed_monitor):
     model = state["model"]
     optimizer = state["optimizer"]
+
+    if len(val_dataloader) == 0:
+        val_dataloader = None
+        fabric.print(f"VAL TO NONE")
 
     if val_dataloader is not None:
         validate(fabric, model, val_dataloader)  # sanity check
@@ -227,6 +233,7 @@ def train(fabric, state, train_dataloader, val_dataloader, speed_monitor):
 @torch.inference_mode()
 def validate(fabric: L.Fabric, model: torch.nn.Module, val_dataloader: DataLoader) -> torch.Tensor:
     fabric.print("Validating ...")
+
     model.eval()
     # fabric.print(f"We now have config: {model.config}")
     # fabric.print(f"We now have config: {model.config.block_size=}")
@@ -238,8 +245,8 @@ def validate(fabric: L.Fabric, model: torch.nn.Module, val_dataloader: DataLoade
         logits = model(input_ids)
         losses[k] = chunked_cross_entropy(logits, targets, chunk_size=0)
 
-        if (k + 1) >= eval_iters:
-            break
+        # if (k + 1) >= eval_iters:
+        #     break
 
     out = losses.mean()
     fabric.print(f"Validating Done")
@@ -278,7 +285,7 @@ def create_dataloader(
     
     import os
     filenames = [data_dir / i for i in os.listdir(str(data_dir))]
-    # fabric.print(f"{filenames=}")
+    fabric.print(f"FOUND DATAFILES {data_dir=}: {filenames[:5]=}")
 
     dataset = PackedDataset(
             filenames,
