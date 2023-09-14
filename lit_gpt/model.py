@@ -134,6 +134,9 @@ class GPT(nn.Module):
         for block in self.transformer.h:
             block.attn.kv_cache = nn.Module()
 
+    def reset_parameters(self) -> None:
+        None
+
 
 class Block(nn.Module):
     def __init__(self, config: Config) -> None:
@@ -169,6 +172,9 @@ class Block(nn.Module):
             x = x + h
             x = x + self.mlp(self.norm_2(x))
         return x
+
+    def reset_parameters(self) -> None:
+        None
 
 
 class CausalSelfAttention(nn.Module):
@@ -276,6 +282,9 @@ class CausalSelfAttention(nn.Module):
                 rope_cache_length + self.config.head_size - self.config.rope_n_elem,
             )
         return KVCache(k_shape, v_shape, device=device, dtype=dtype)
+    
+    def reset_parameters(self) -> None:
+        None
 
 
 class GptNeoxMLP(nn.Module):
@@ -289,6 +298,8 @@ class GptNeoxMLP(nn.Module):
         x = torch.nn.functional.gelu(x)
         return self.proj(x)
 
+    def reset_parameters(self) -> None:
+        None
 
 class LLaMAMLP(nn.Module):
     def __init__(self, config: Config) -> None:
@@ -303,6 +314,8 @@ class LLaMAMLP(nn.Module):
         x = torch.nn.functional.silu(x_fc_1) * x_fc_2
         return self.proj(x)
 
+    def reset_parameters(self) -> None:
+        None
 
 def build_rope_cache(
     seq_len: int,
@@ -361,3 +374,6 @@ class KVCache(nn.Module):
         k = self.k.index_copy_(2, input_pos, k)
         v = self.v.index_copy_(2, input_pos, v)
         return k, v
+
+    def reset_parameters(self) -> None:
+        None
