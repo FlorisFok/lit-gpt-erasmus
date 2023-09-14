@@ -21,7 +21,7 @@ from lit_gpt.model import GPT, Block, Config
 from lit_gpt.packed_dataset import CombinedDataset, PackedDataset
 from lit_gpt.speed_monitor import SpeedMonitorFabric as SpeedMonitor
 from lit_gpt.speed_monitor import estimate_flops, measure_flops
-from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision, num_parameters, step_csv_logger
+from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision, num_parameters, step_csv_logger, lazy_load
 
 model_name = "pythia-2.8b"
 name = "pythia-2.8b"
@@ -69,6 +69,7 @@ def setup(
     val_data_dir: Optional[Path] = None,
     precision: Optional[str] = None,
     resume: Union[bool, Path] = False,
+    pretrain: str = '',
 ) -> None:
 
     precision = precision or get_default_supported_precision(training=True)
@@ -88,10 +89,10 @@ def setup(
     fabric.print(f"{devices=}, {train_data_dir=}, {val_data_dir=}, {precision=}, {resume=}")
     fabric.print(hparams)
     # fabric.launch(main, train_data_dir, val_data_dir, resume)
-    main(fabric, train_data_dir, val_data_dir, resume)
+    main(fabric, train_data_dir, val_data_dir, resume, pretrain)
 
 
-def main(fabric, train_data_dir, val_data_dir, resume):
+def main(fabric, train_data_dir, val_data_dir, resume, pretrain):
     speed_monitor = SpeedMonitor(fabric, window_size=50, time_unit="seconds")
 
     if fabric.global_rank == 0:
@@ -138,6 +139,19 @@ def main(fabric, train_data_dir, val_data_dir, resume):
 
     if resume is True:
         resume = sorted(out_dir.glob("*.pth"))[-1]
+
+    elif pretrain:
+        checkpoint_dir  = Path(pretrain)
+        checkpoint_path = checkpoint_dir / "lit_model.pth"
+
+        resume = out_dir / 'start.pth'
+
+        fabric.print(f"Loading weights from {pretrain}")
+        with lazy_load(checkpoint_path) as full_state:
+            fabric.print(f"{checkpoint_path=} has: {full_state.keys()=}")
+            state.update({'model': full_state['model']})
+            torch.save(full_state, resume)
+
     if resume:
         fabric.print(f"Resuming training from {resume}")
         fabric.load(resume, state)
