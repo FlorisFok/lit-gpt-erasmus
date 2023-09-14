@@ -9,6 +9,7 @@ import lightning as L
 import torch
 from lightning.fabric.strategies import FSDPStrategy
 from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, IterableDataset
 import numpy as np
 
 # support running without installing as a package
