@@ -143,7 +143,7 @@ def main(fabric, train_data_dir, val_data_dir, resume, from_model, model_name, o
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2), foreach=False
     )
-    optimizer = fabric.setup_optimizers(optimizer)
+    # optimizer = fabric.setup_optimizers(optimizer)
 
     state = {"model": model, "optimizer": optimizer, "hparams": hparams, "iter_num": 0, "step_count": 0}
 
