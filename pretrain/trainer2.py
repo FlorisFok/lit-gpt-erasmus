@@ -23,8 +23,8 @@ from lit_gpt.speed_monitor import estimate_flops, measure_flops
 from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision, num_parameters, step_csv_logger, lazy_load
 
 
-name = "redpajama"
-out_dir = Path("out") / name
+# name = "redpajama"
+# out_dir = Path("out") / name
 save_interval = 1000
 eval_interval = 1000
 eval_iters = 100
@@ -139,7 +139,7 @@ def main(fabric, train_data_dir, val_data_dir, resume, from_model, model_name, o
     fabric.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
     fabric.print(f"Total parameters {num_parameters(model):,}")
 
-    model = fabric.setup(model)
+    # model = fabric.setup(model)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2), foreach=False
     )
