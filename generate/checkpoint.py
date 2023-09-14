@@ -77,7 +77,7 @@ def main(
 
     t0 = time.perf_counter()
     with lazy_load(finetuned_path) as checkpoint:
-        model.load_state_dict({i.replace('module.', ''):j for i,j in checkpoint.get("model", checkpoint).get('state_dict').items()}, strict=quantize is None)
+        model.load_state_dict(checkpoint.get("model", checkpoint), strict=quantize is None)
     fabric.print(f"Time to load the model weights: {time.perf_counter() - t0:.02f} seconds.", file=sys.stderr)
 
     model.eval()
