@@ -13,6 +13,7 @@ from lightning_utilities.core.imports import RequirementCache
 from typing_extensions import Self
 
 from lit_gpt.config import Config
+from xformers.ops import SwiGLU
 
 FlashAttention2Available = bool(RequirementCache("flash-attn>=2.0.0.post1"))
 
