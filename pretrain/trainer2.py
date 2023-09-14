@@ -274,7 +274,7 @@ def create_dataloader(
     
     import os
     filenames = [data_dir / i for i in os.listdir(str(data_dir))]
-    fabric.print(f"{filenames=}")
+    # fabric.print(f"{filenames=}")
 
     dataset = PackedDataset(
             filenames,
