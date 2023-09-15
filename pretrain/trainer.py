@@ -1,214 +1,152 @@
+import glob
 import math
 import sys
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional, Tuple, Union
+from functools import partial
+
+import math
+import os
+from argparse import ArgumentParser
 
 import lightning as L
-import numpy as np
 import torch
-from lightning.pytorch.callbacks import ModelCheckpoint
-from lightning.pytorch.loggers import CSVLogger
-from lightning.pytorch.strategies import FSDPStrategy
+from torch.utils.data import DataLoader
 from torch.utils.data import DataLoader, IterableDataset
+import numpy as np
 
 # support running without installing as a package
 wd = Path(__file__).parent.parent.resolve()
 sys.path.append(str(wd))
 
+from lit_gpt.model import GPT, Block, Config
+from lit_gpt.packed_dataset import CombinedDataset, PackedDataset
+from lit_gpt.speed_monitor import SpeedMonitorFabric as SpeedMonitor
+from lit_gpt.speed_monitor import estimate_flops, measure_flops
+from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision, num_parameters, step_csv_logger, lazy_load
 
-from lit_gpt import Config
-from lit_gpt.model import GPT, Block
-from lit_gpt.speed_monitor import SpeedMonitorCallback, estimate_flops, measure_flops
-from lit_gpt.utils import chunked_cross_entropy, get_default_supported_precision, step_csv_logger, lazy_load
+model_name = "pythia-2.8b"
+name = "pythia-2.8b"
+out_dir = Path("out") / name
+save_interval = 3
+eval_interval = 500
+eval_iters = 100
+log_interval = 5
 
-
-
-class LightningGPTModule(L.LightningModule):
-    def __init__(self, config: Config, learning_rate, weight_decay, beta1, beta2, micro_batch_size, decay_lr, warmup_iters, lr_decay_iters, min_lr, check_point='') -> None:
-        super().__init__()
-        self.config = config
-
-        self.micro_batch_size = micro_batch_size
-        self.learning_rate = learning_rate
-        self.weight_decay = weight_decay
-        self.beta1 = beta1
-        self.beta2 = beta2
-        self.decay_lr = decay_lr
-        self.warmup_iters = warmup_iters
-        self.lr_decay_iters = lr_decay_iters
-        self.min_lr = min_lr
-        self.check_point = check_point
-
-        self.module: Optional[torch.nn.Module] = None
-        self.measured_flops: Optional[int] = None
-
-    def configure_model(self) -> None:
-        self.module = GPT(self.config)
-
-        if not self.check_point:
-            self.module.apply(self.module._init_weights)
-
-        else:
-            checkpoint_dir  = Path(self.check_point)
-            checkpoint_path = checkpoint_dir / "lit_model.pth"
-            with lazy_load(checkpoint_path) as checkpoint:
-                self.module.load_state_dict(checkpoint)
-
-    def configure_optimizers(self) -> torch.optim.Optimizer:
-        return torch.optim.AdamW(
-            self.module.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay, betas=(self.beta1, self.beta2), foreach=False
-        )
-
-    def on_fit_start(self) -> None:
-        trainer = self.trainer
-        with torch.device("meta"):
-            meta_model = GPT(self.module.config)
-            # "estimated" is not as precise as "measured". Estimated is optimistic but widely used in the wild.
-            # When comparing MFU or FLOP numbers with other projects that use estimated FLOPs,
-            # consider setting `self.measured_flops = estimated_flops` instead
-            estimated_flops = estimate_flops(meta_model) * self.micro_batch_size
-            self.print(f"Estimated TFLOPs: {estimated_flops * trainer.world_size / 1e12:.2f}")
-            x = torch.randint(0, 1, (self.micro_batch_size, meta_model.config.block_size))
-            self.measured_flops = measure_flops(meta_model, x)
-            self.print(f"Measured TFLOPs: {self.measured_flops * trainer.world_size / 1e12:.2f}")
-
-    def on_train_batch_start(self, batch: Any, batch_idx: int) -> None:
-        if not self.decay_lr:
-            return
-        # determine and set the learning rate for this iteration
-        lr = get_lr(self.trainer.fit_loop.total_batch_idx, self.warmup_iters, self.learning_rate, self.lr_decay_iters, self.min_lr)
-        for optimizer in self.trainer.strategy.optimizers:
-            for param_group in optimizer.param_groups:
-                param_group["lr"] = lr
-
-    def training_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
-        input_ids, targets = batch
-        logits = self.module(input_ids)
-        loss = chunked_cross_entropy(logits, targets, chunk_size=0)
-        self.log("train_loss", loss, on_step=True, on_epoch=False, prog_bar=True)
-        return loss
-
-    def validation_step(self, batch: Any, batch_idx: int) -> None:
-        input_ids, targets = batch
-        logits = self.module(input_ids)
-        loss = chunked_cross_entropy(logits, targets, chunk_size=0)
-        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
+# Hyperparameters
+learning_rate = 6e-4
+batch_size = 20
+micro_batch_size = 1
+gradient_accumulation_steps = batch_size // micro_batch_size
+assert gradient_accumulation_steps > 0
+max_iters = 101  # num_epochs * (epoch_size // micro_batch_size) // devices  60000
+weight_decay = 1e-1
+beta1 = 0.9
+beta2 = 0.95
+grad_clip = 1.0
+decay_lr = True
+warmup_iters = 2000
+lr_decay_iters = max_iters
+min_lr = 6e-5
 
 
-def main(devices: int = 4, precision: Optional[str] = None, model_name: str = "pythia-70m",
-        out_dir: Path = Path("out/None"),
-        data_dir: Path = Path("data/None"),
-        check_point: str = '',
-        save_interval: int = 1000,
-        eval_interval: int = 1000,
-        eval_iters: int = 100,
-        log_interval: int = 1,
-        learning_rate: float = 6e-4,
-        batch_size : int= 125,
-        micro_batch_size: int = 5,
-        max_iters: int = 600000,
-        weight_decay: float = 1e-1,
-        beta1: float = 0.9,
-        beta2: float = 0.95,
-        warmup_iters: float = 2000,
-        min_lr: float = 6e-5,
-        strategy: str = 'fsdp') -> None:
+# Data proportions from https://arxiv.org/pdf/2302.13971.pdf Table 1
+data_config = [
+    ("arxiv", 2.5),
+    ("book", 4.5),
+    ("c4", 15.0),
+    ("cc", 67.0),
+    ("github", 4.5),
+    ("stackexchange", 2.0),
+    ("wikipedia", 4.5),
+]
 
-    precision = precision or get_default_supported_precision(training=True)
-    gradient_accumulation_steps = batch_size // micro_batch_size
-    assert gradient_accumulation_steps > 0
-    # num_epochs * (epoch_size // micro_batch_size) // devices
+hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
+logger = step_csv_logger("out", name, flush_logs_every_n_steps=log_interval)
 
-    decay_lr = True
-    lr_decay_iters = max_iters
 
-    hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
+def create_dataloader(
+    batch_size: int, block_size: int, data_dir: Path, fabric, shuffle: bool = True, seed: int = 12345
+) -> DataLoader:
+    datasets = []
+    # for prefix, _ in data_config:
+    #     filenames = glob.glob(str(data_dir / f"{prefix}*"))
+    #     dataset = PackedDataset(
+    #         filenames,
+    #         n_chunks=4,
+    #         block_size=block_size,
+    #         shuffle=shuffle,
+    #         seed=seed,
+    #         num_processes=fabric.world_size,
+    #         process_rank=fabric.global_rank,
+    #     )
+    #     datasets.append(dataset)
 
-    if devices > 1:
-        strategy = FSDPStrategy(
-            # auto_wrap_policy={Block},
-            # activation_checkpointing_policy={Block},
-            # the argument is not available in the Trainer strategy, but it's the default anyways
-            # state_dict_type="full",
-            # limit_all_gathers=True,
-            # cpu_offload=False,
-        )
-    if not strategy:
-        strategy = "auto"
+    # if not datasets:
+    #     raise RuntimeError(
+    #         f"No data found at {data_dir}. Make sure you ran prepare_redpajama.py to create the dataset."
+    #     )
 
-    logger = step_csv_logger("out", model_name, cls=CSVLogger, flush_logs_every_n_steps=log_interval)
-    speed_monitor = SpeedMonitorCallback(
-        length_fn=lambda batch: batch[0].size(1), batch_size=micro_batch_size, window_size=50, time_unit="seconds"
-    )
-    model_checkpoint = ModelCheckpoint(dirpath=out_dir, every_n_train_steps=save_interval, save_last=True, verbose=True)
-    trainer = L.Trainer(
-        devices=devices,
-        strategy='fsdp',
-        precision=precision,
-        logger=logger,
-        callbacks=[speed_monitor, model_checkpoint],
-        max_steps=max_iters,
-        # max_epochs=1,
-        limit_val_batches=eval_iters,
-        accumulate_grad_batches=gradient_accumulation_steps,
-        log_every_n_steps=log_interval,
-        val_check_interval=eval_interval,
+    # weights = [weight for _, weight in data_config]
+    # sum_weights = sum(weights)
+    # weights = [el / sum_weights for el in weights]
+
+    # combined_dataset = CombinedDataset(datasets=datasets, seed=seed, weights=weights)
+    # return DataLoader(combined_dataset, batch_size=batch_size, shuffle=False, pin_memory=True)
+    
+    import os
+    filenames = [data_dir / i for i in os.listdir(str(data_dir))]
+    fabric.print(f"FOUND DATAFILES {data_dir=}: {filenames[:5]=}")
+
+    dataset = PackedDataset(
+            filenames,
+            n_chunks=4,
+            block_size=block_size,
+            shuffle=shuffle,
+            seed=seed,
+            num_processes=fabric.world_size,
+            process_rank=fabric.global_rank,
     )
 
-    L.seed_everything(1337, workers=True)  # same seed for every process to init model (FSDP)
-    trainer.print(hparams)
-
-    if trainer.global_rank == 0:
-        out_dir.mkdir(parents=True, exist_ok=True)
-
-    if check_point:
-        checkpoint_dir  = Path(check_point)
-        config = Config.from_name(name=checkpoint_dir.name)
-        trainer.print(f"Loading model with {config.__dict__}")
-        t0 = time.perf_counter()
-        checkpoint_path = checkpoint_dir / "lit_model.pth"
-        trainer.print(f"Loading model {str(checkpoint_path)!r} with {config.__dict__}")
-        with trainer.init_module(empty_init=False):
-            model = LightningGPTModule(config, learning_rate, weight_decay, beta1, beta2, micro_batch_size, decay_lr, warmup_iters, lr_decay_iters, min_lr, check_point)
-        trainer.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
-
-    else:
-        config = Config.from_name(model_name)
-        trainer.print(f"Loading model with {config.__dict__}")
-        t0 = time.perf_counter()
-        model = LightningGPTModule(config, learning_rate, weight_decay, beta1, beta2, micro_batch_size, decay_lr, warmup_iters, lr_decay_iters, min_lr)
-        trainer.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
-
-    train_data = Dataset(str(data_dir / "train.bin"), config.block_size)
-    val_data = Dataset(str(data_dir / "val.bin"), config.block_size)
-    train_dataloader = DataLoader(train_data, batch_size=micro_batch_size, num_workers=20)
-    val_dataloader = DataLoader(val_data, batch_size=micro_batch_size, num_workers=20)
-
-    t0 = time.perf_counter()
-    trainer.fit(model, train_dataloader, val_dataloader, ckpt_path="last")
-    trainer.print(f"Training time: {(time.perf_counter()-t0):.2f}s")
-    if trainer.strategy.root_device.type == "cuda":
-        trainer.print(f"Memory used: {torch.cuda.max_memory_allocated() / 1e9:.02f} GB")
+    return DataLoader(dataset, batch_size=batch_size, shuffle=False, pin_memory=True)
 
 
-class Dataset(IterableDataset):
-    def __init__(self, data_file: Path, block_size: int):
-        super().__init__()
-        self.data_file = data_file
-        self.block_size = block_size
-
-    def __iter__(self):
-        data = np.memmap(self.data_file, dtype=np.uint16, mode="r")
-        while True:
-            i = torch.randint(len(data) - self.block_size, (1,)).item()
-            x = torch.from_numpy((data[i : i + self.block_size]).astype(np.int64))
-            y = torch.from_numpy((data[i + 1 : i + 1 + self.block_size]).astype(np.int64))
-            yield x, y
+def create_dataloaders(
+    batch_size: int,
+    block_size: int,
+    fabric,
+    train_data_dir: Path = Path("data/redpajama_sample"),
+    val_data_dir: Optional[Path] = None,
+    seed: int = 12345,
+) -> Tuple[DataLoader, DataLoader]:
+    # Increase by one because we need the next word as well
+    effective_block_size = block_size + 1
+    train_dataloader = create_dataloader(
+        batch_size=batch_size,
+        block_size=effective_block_size,
+        fabric=fabric,
+        data_dir=train_data_dir,
+        shuffle=True,
+        seed=seed,
+    )
+    val_dataloader = (
+        create_dataloader(
+            batch_size=batch_size,
+            block_size=effective_block_size,
+            fabric=fabric,
+            data_dir=val_data_dir,
+            shuffle=False,
+            seed=seed,
+        )
+        if val_data_dir
+        else None
+    )
+    return train_dataloader, val_dataloader
 
 
 # learning rate decay scheduler (cosine with warmup)
-def get_lr(it, warmup_iters, learning_rate, lr_decay_iters, min_lr):
+def get_lr(it):
     # 1) linear warmup for warmup_iters steps
     if it < warmup_iters:
         return learning_rate * it / warmup_iters
@@ -225,8 +163,30 @@ def get_lr(it, warmup_iters, learning_rate, lr_decay_iters, min_lr):
 if __name__ == "__main__":
     # Uncomment this line if you see an error: "Expected is_sm80 to be true, but got false"
     # torch.backends.cuda.enable_flash_sdp(False)
-    torch.set_float32_matmul_precision("high")
+    # torch.set_float32_matmul_precision("high")
 
-    from jsonargparse import CLI
+    config = Config.from_name(model_name)
+    model = GPT(config)
 
-    CLI(main)
+    parser = ArgumentParser()
+    parser = L.Trainer.add_argparse_args(parser)
+    parser.add_argument('--train_data_dir', default=None, type=str, required=True)
+    parser.add_argument('--val_data_dir', default=None, type=str)
+    args = parser.parse_args()
+
+    trainer = L.Trainer.from_argparse_args(
+        args,
+        max_epochs=10,
+        gradient_clip_val=1.0,
+    )
+
+    train_dataloader, val_dataloader = create_dataloaders(
+        batch_size=micro_batch_size,
+        block_size=config.block_size,
+        fabric=trainer,
+        train_data_dir=args.train_data_dir,
+        val_data_dir=args.val_data_dir,
+        seed=(1337 + trainer.global_rank),
+    )
+    
+    trainer.fit(model, train_dataloader, val_dataloader)
