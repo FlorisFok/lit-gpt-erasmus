@@ -69,9 +69,12 @@ class GPT(nn.Module):
     #     elif isinstance(module, nn.Embedding):
     #         torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
-    def _init_weights(self, module: nn.Module, n_layer) -> None:
+    def _init_weights(self, module: nn.Module, n_layer = None) -> None:
         """Meant to be used with `gpt.apply(gpt._init_weights)`."""
         # GPT-NeoX  https://arxiv.org/pdf/2204.06745.pdf
+        if not n_layer:
+            n_layers = self.config.n_layer
+
         # print module name
         if isinstance(module, nn.Embedding):
             # RWKV: set it to 1e-4
