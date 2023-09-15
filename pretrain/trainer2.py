@@ -145,11 +145,12 @@ def main(fabric, train_data_dir, val_data_dir, resume, pretrain, quantize=None):
     fabric.print(f"Time to instantiate model: {time.perf_counter() - t0:.02f} seconds.")
     fabric.print(f"Total parameters {num_parameters(model):,}")
 
-    model = fabric.setup(model)
+    # model = fabric.setup(model)
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(beta1, beta2), foreach=False
     )
-    optimizer = fabric.setup_optimizers(optimizer)
+    model, optimizer = fabric.setup(model, optimizer)
+    # optimizer = fabric.setup_optimizers(optimizer)
 
     state = {"model": model, "optimizer": optimizer, "hparams": hparams, "iter_num": 0, "step_count": 0}
 
