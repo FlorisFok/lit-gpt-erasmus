@@ -121,7 +121,7 @@ def main(devices: int = 4, precision: Optional[str] = None) -> None:
 
     logger = step_csv_logger("out", name, cls=CSVLogger, flush_logs_every_n_steps=log_interval)
     speed_monitor = SpeedMonitorCallback(
-        length_fn=lambda batch: batch[0].size(1), batch_size=micro_batch_size, window_size=50, time_unit="seconds"
+        length_fn=lambda batch: batch.size(1), batch_size=micro_batch_size, window_size=50, time_unit="seconds"
     )
     model_checkpoint = ModelCheckpoint(dirpath=out_dir, every_n_train_steps=save_interval, save_last=True, verbose=True)
     trainer = L.Trainer(
