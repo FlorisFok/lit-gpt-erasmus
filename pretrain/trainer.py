@@ -89,14 +89,16 @@ class LightningGPTModule(L.LightningModule):
                 param_group["lr"] = lr
 
     def training_step(self, batch: Any, batch_idx: int) -> torch.Tensor:
-        input_ids, targets = batch
+        input_ids = batch[:, 0 : self.config.block_size].contiguous()
+        targets = batch[:, 1 : self.config.block_size + 1].contiguous()
         logits = self.module(input_ids)
         loss = chunked_cross_entropy(logits, targets, chunk_size=0)
         self.log("train_loss", loss, on_step=True, on_epoch=False, prog_bar=True)
         return loss
 
     def validation_step(self, batch: Any, batch_idx: int) -> None:
-        input_ids, targets = batch
+        input_ids = batch[:, 0 : self.config.block_size].contiguous()
+        targets = batch[:, 1 : self.config.block_size + 1].contiguous()
         logits = self.module(input_ids)
         loss = chunked_cross_entropy(logits, targets, chunk_size=0)
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
@@ -210,21 +212,6 @@ def create_dataloader(
     )
 
     return DataLoader(dataset, batch_size=batch_size, shuffle=False, pin_memory=True)
-
-
-class Dataset(IterableDataset):
-    def __init__(self, data_file: Path, block_size: int):
-        super().__init__()
-        self.data_file = data_file
-        self.block_size = block_size
-
-    def __iter__(self):
-        data = np.memmap(self.data_file, dtype=np.uint16, mode="r")
-        while True:
-            i = torch.randint(len(data) - self.block_size, (1,)).item()
-            x = torch.from_numpy((data[i : i + self.block_size]).astype(np.int64))
-            # y = torch.from_numpy((data[i + 1 : i + 1 + self.block_size]).astype(np.int64))
-            yield x #, y
 
 
 def create_dataloaders(
