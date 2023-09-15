@@ -11,6 +11,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch.strategies import FSDPStrategy
 from torch.utils.data import DataLoader, IterableDataset
+from lit_gpt.packed_dataset import CombinedDataset, PackedDataset
 
 # support running without installing as a package
 wd = Path(__file__).parent.parent.resolve()
