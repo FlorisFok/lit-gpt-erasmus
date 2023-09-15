@@ -76,13 +76,14 @@ def setup(
     precision = precision or get_default_supported_precision(training=True)
 
     if devices > 1:
-        strategy = FSDPStrategy(
-            auto_wrap_policy={Block},
-            activation_checkpointing_policy={Block},
-            state_dict_type="full",
-            limit_all_gathers=True,
-            cpu_offload=False,
-        )
+        # strategy = FSDPStrategy(
+        #     auto_wrap_policy={Block},
+        #     activation_checkpointing_policy={Block},
+        #     state_dict_type="full",
+        #     limit_all_gathers=True,
+        #     cpu_offload=False,
+        # )
+        strategy = 'deepspeed_stage_3'
     else:
         strategy = "auto"
 
