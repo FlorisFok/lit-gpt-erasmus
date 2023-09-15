@@ -102,7 +102,7 @@ class LightningGPTModule(L.LightningModule):
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
 
 
-def main(devices: int = 1, precision: Optional[str] = None) -> None:
+def main(devices: int = 4, precision: Optional[str] = None) -> None:
     precision = precision or get_default_supported_precision(training=True)
 
     if devices > 1:
