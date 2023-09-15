@@ -194,8 +194,8 @@ if __name__ == "__main__":
         batch_size=micro_batch_size,
         block_size=config.block_size,
         fabric=trainer,
-        train_data_dir=args.train_data_dir,
-        val_data_dir=args.val_data_dir,
+        train_data_dir=train_data_dir,
+        val_data_dir=val_data_dir,
         seed=(1337 + trainer.global_rank),
     )
     
