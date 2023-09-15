@@ -70,6 +70,7 @@ def setup(
     precision: Optional[str] = None,
     resume: Union[bool, Path] = False,
     pretrain: str = '',
+    strategy: str= 'fsdp'
 ) -> None:
 
     precision = precision or get_default_supported_precision(training=True)
@@ -85,7 +86,7 @@ def setup(
     # else:
     #     strategy = "auto"
 
-    fabric = L.Fabric(loggers=logger) # devices=devices, strategy=strategy, precision=precision, 
+    fabric = L.Fabric(loggers=logger, devices=devices, strategy=strategy, precision=precision) # devices=devices, strategy=strategy, precision=precision, 
     fabric.print(f"{devices=}, {train_data_dir=}, {val_data_dir=}, {precision=}, {resume=}")
     fabric.print(hparams)
     # fabric.launch(main, train_data_dir, val_data_dir, resume)
