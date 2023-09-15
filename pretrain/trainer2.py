@@ -75,16 +75,16 @@ def setup(
 
     precision = precision or get_default_supported_precision(training=True)
 
-    # if devices > 1:
-    #     strategy = FSDPStrategy(
-    #         auto_wrap_policy={Block},
-    #         activation_checkpointing_policy={Block},
-    #         state_dict_type="full",
-    #         limit_all_gathers=True,
-    #         cpu_offload=False,
-    #     )
-    # else:
-    #     strategy = "auto"
+    if devices > 1:
+        strategy = FSDPStrategy(
+            auto_wrap_policy={Block},
+            activation_checkpointing_policy={Block},
+            state_dict_type="full",
+            limit_all_gathers=True,
+            cpu_offload=False,
+        )
+    else:
+        strategy = "auto"
 
     fabric = L.Fabric(loggers=logger, devices=devices, strategy=strategy, precision=precision) # devices=devices, strategy=strategy, precision=precision, 
     fabric.print(f"{devices=}, {train_data_dir=}, {val_data_dir=}, {precision=}, {resume=}")
