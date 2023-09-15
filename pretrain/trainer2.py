@@ -90,7 +90,7 @@ def setup(
     fabric = L.Fabric(loggers=logger) # devices=devices, strategy=strategy, precision=precision, 
     fabric.print(f"{devices=}, {train_data_dir=}, {val_data_dir=}, {precision=}, {resume=}")
     fabric.print(hparams)
-    fabric.launch(main, train_data_dir, val_data_dir, resume)
+    # fabric.launch(main, train_data_dir, val_data_dir, resume)
     main(fabric, train_data_dir, val_data_dir, resume, pretrain)
 
 
