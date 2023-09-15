@@ -185,7 +185,7 @@ if __name__ == "__main__":
     del dicty['val_data_dir']
 
     trainer = L.Trainer(
-        dicty**,
+        **dicty,
         max_epochs=10,
         gradient_clip_val=1.0,
     )
