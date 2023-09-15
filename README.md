@@ -75,10 +75,9 @@ export TOKENIZER=pythia
 python3 scripts/prepare_any.py --checkpoint_dir data/$MY_MODEL --destination_path data/$OUT_FILE --data_dir data/$TOKENIZER/$IN_FILE
 ```
 
-
 ## Run MultiNode
 
-Here we are on the machine, not in the docker, and we are logged into two machines. For node1 one we have:
+Here we are on the machine, not in the docker, and we are logged into two machines. If we add `--pretrain checkpoints/$MY_MODEL` to the command we will pretrain from that specific checkpoint. If not defined it will default to the setting mentioned in the trainer2 script and train from scratch. For node1 one we have:
 
 ``` shell
 docker run --shm-size=1g --ulimit memlock=-1 --ulimit stack=67108864 -v /home/ffok/data:/app/data -v /home/ffok/out:/app/out -v /home/ffok/lit-gpt-erasmus/pretrain:/app/pretrain -v /home/ffok/checkpoints:/app/checkpoints -e NCCL_IB_DISABLE=1 --network host -v /home/ffok/lit-gpt-erasmus/lit_gpt:/app/lit_gpt --gpus all -d erasmus-gpt:0.2.2 lightning run model --node-rank=0 --main-address=10.3.123.10 --accelerator=cuda --devices=4 --num-nodes=2 pretrain/trainer2.py --train_data_dir data/$OUT_FILE --pretrain checkpoints/$MY_MODEL
