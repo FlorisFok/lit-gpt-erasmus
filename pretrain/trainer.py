@@ -177,9 +177,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     print("input", args.__dict__)
+    dicty = args.__dict__.copy()
+
+    train_data_dir = dicty["train_data_dir"] if "train_data_dir" in dicty else None
+    val_data_dir = dicty["val_data_dir"] if "val_data_dir" in dicty else None
+    del dicty['train_data_dir']
+    del dicty['val_data_dir']
 
     trainer = L.Trainer(
-        **args.__dict__,
+        dicty**,
         max_epochs=10,
         gradient_clip_val=1.0,
     )
