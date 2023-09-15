@@ -179,8 +179,8 @@ if __name__ == "__main__":
     print("input", args.__dict__)
     dicty = args.__dict__.copy()
 
-    train_data_dir = Path(dicty["train_data_dir"]) if "train_data_dir" in dicty else None
-    val_data_dir = Path(dicty["val_data_dir"]) if "val_data_dir" in dicty else None
+    train_data_dir = Path(dicty["train_data_dir"]) if ("train_data_dir" in dicty and dicty["train_data_dir"]) else None
+    val_data_dir = Path(dicty["val_data_dir"]) if ("val_data_dir" in dicty and dicty["val_data_dir"]) else None
     del dicty['train_data_dir']
     del dicty['val_data_dir']
 
