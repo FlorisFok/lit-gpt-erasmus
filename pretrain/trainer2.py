@@ -33,8 +33,8 @@ log_interval = 5
 
 # Hyperparameters
 learning_rate = 6e-4
-batch_size = 25
-micro_batch_size = 1
+batch_size = 20
+micro_batch_size = 4
 gradient_accumulation_steps = batch_size // micro_batch_size
 assert gradient_accumulation_steps > 0
 max_iters = 101  # num_epochs * (epoch_size // micro_batch_size) // devices  60000
