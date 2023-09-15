@@ -178,9 +178,10 @@ if __name__ == "__main__":
 
     print("input", args.__dict__)
 
-    trainer = L.Trainer.from_argparse_args(
+    trainer = L.Trainer(
         **args.__dict__,
         max_epochs=10,
+        gradient_clip_val=1.0,
     )
 
     train_dataloader, val_dataloader = create_dataloaders(
