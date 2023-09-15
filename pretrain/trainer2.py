@@ -87,11 +87,11 @@ def setup(
     else:
         strategy = "auto"
 
-    fabric = L.Fabric(loggers=logger, devices=devices, strategy=strategy, precision=precision)
+    fabric = L.Fabric(loggers=logger, devices=devices, strategy=strategy, precision=precision, num_nodes=2)
     fabric.print(f"{devices=}, {train_data_dir=}, {val_data_dir=}, {precision=}, {resume=}")
     fabric.print(hparams)
-    # fabric.launch(main, train_data_dir, val_data_dir, resume)
-    main(fabric, train_data_dir, val_data_dir, resume, pretrain)
+    fabric.launch(main, train_data_dir, val_data_dir, resume, pretrain)
+    # main(fabric, train_data_dir, val_data_dir, resume, pretrain)
 
 
 def main(fabric, train_data_dir, val_data_dir, resume, pretrain, quantize=None):
