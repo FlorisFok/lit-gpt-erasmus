@@ -70,27 +70,27 @@ def setup(
     precision: Optional[str] = None,
     resume: Union[bool, Path] = False,
     pretrain: str = '',
-    strategy: str= 'fsdp'
+    # strategy: str= 'fsdp'
 ) -> None:
 
     precision = precision or get_default_supported_precision(training=True)
 
-    if devices > 1:
-        strategy = FSDPStrategy(
-            auto_wrap_policy={Block},
-            activation_checkpointing_policy={Block},
-            state_dict_type="full",
-            limit_all_gathers=True,
-            cpu_offload=False,
-        )
-        # strategy = 'deepspeed_stage_3'
-    else:
-        strategy = "auto"
+    # if devices > 1:
+    #     strategy = FSDPStrategy(
+    #         auto_wrap_policy={Block},
+    #         activation_checkpointing_policy={Block},
+    #         state_dict_type="full",
+    #         limit_all_gathers=True,
+    #         cpu_offload=False,
+    #     )
+    #     # strategy = 'deepspeed_stage_3'
+    # else:
+    #     strategy = "auto"
 
-    fabric = L.Fabric(loggers=logger, num_nodes=4, devices=devices, strategy=strategy, precision=precision) # devices=devices, strategy=strategy, precision=precision, 
+    fabric = L.Fabric(loggers=logger) # devices=devices, strategy=strategy, precision=precision, 
     fabric.print(f"{devices=}, {train_data_dir=}, {val_data_dir=}, {precision=}, {resume=}")
     fabric.print(hparams)
-    # fabric.launch(main, train_data_dir, val_data_dir, resume)
+    fabric.launch(main, train_data_dir, val_data_dir, resume)
     main(fabric, train_data_dir, val_data_dir, resume, pretrain)
 
 

@@ -169,15 +169,18 @@ if __name__ == "__main__":
     model = GPT(config)
 
     parser = ArgumentParser()
-    parser = L.Trainer.add_argparse_args(parser)
     parser.add_argument('--train_data_dir', default=None, type=str, required=True)
     parser.add_argument('--val_data_dir', default=None, type=str)
+    parser.add_argument('--devices', default=1, type=str)
+    parser.add_argument('--strategy', default='auto', type=str)
+    parser.add_argument('--num_nodes', default=0, type=int)
     args = parser.parse_args()
 
+    print("input", args.__dict__)
+
     trainer = L.Trainer.from_argparse_args(
-        args,
+        **args.__dict__,
         max_epochs=10,
-        gradient_clip_val=1.0,
     )
 
     train_dataloader, val_dataloader = create_dataloaders(
