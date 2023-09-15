@@ -65,10 +65,14 @@ python scripts/convert_hf_checkpoint.py --checkpoint_dir checkpoints/$MY_MODEL
 Data needs to be placed in a folder, the folder contains one or more `.jsonl` with format:
 `{"text": <text>}\n` for each row.  
   
-Now lets Tokenize! (9min / gb approx.)
+Now lets Tokenize (9min / gb approx.). It's smart to add `lit-` to tokenized data and the MODEL it used.
 
 ``` shell
-python3 scripts/prepare_any.py --checkpoint_dir data/$MY_MODEL --destination_path data/$OUT_FILE --data_dir data/$IN_FILE
+export OUT_FILE=lit-sample
+export IN_FILE=sample
+export TOKENIZER=pythia
+
+python3 scripts/prepare_any.py --checkpoint_dir data/$MY_MODEL --destination_path data/$OUT_FILE --data_dir data/$TOKENIZER/$IN_FILE
 ```
 
 
