@@ -45,6 +45,7 @@ RUN pip install .
 RUN pip uninstall -y lightning
 RUN pip install git+https://github.com/Lightning-AI/lightning.git@c5cb53269465633076ad9220e225336ebb815547
 
+RUN pip install -U deepspeed
 
 COPY . /app
 WORKDIR /app
